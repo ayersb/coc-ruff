@@ -23,3 +23,5 @@ function getPackageVersion(name: string) {
 }
 
 export const RUFF_LSP_VERSION = getPackageVersion('ruff-lsp');
+
+export const RUFF_SERVER_SUBCOMMAND = 'server';

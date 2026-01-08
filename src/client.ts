@@ -1,6 +1,44 @@
 import { LanguageClient, LanguageClientOptions, ServerOptions, workspace } from 'coc.nvim';
+import { RUFF_SERVER_SUBCOMMAND } from './constant';
 
 import which from 'which';
+
+export function createNativeServerClient(command: string) {
+  const settings = workspace.getConfiguration('ruff');
+  const newEnv = { ...process.env };
+  const args = [RUFF_SERVER_SUBCOMMAND];
+
+  const serverOptions: ServerOptions = {
+    command,
+    args,
+    options: { env: newEnv },
+  };
+
+  if (settings.enableExperimentalFormatter) {
+    newEnv.RUFF_EXPERIMENTAL_FORMATTER = '1';
+  }
+
+  const clientOptions: LanguageClientOptions = {
+    documentSelector: ['python'],
+    initializationOptions: getInitializationOptions(),
+    disabledFeatures: getLanguageClientDisabledFeatures(),
+    middleware: {
+      handleDiagnostics: (uri, diagnostics, next) => {
+        // Override severity: change all warnings to errors
+        const modifiedDiagnostics = diagnostics.map(diag => {
+          if (diag.severity === 2) { // 2 = Warning in LSP
+            return { ...diag, severity: 1 }; // 1 = Error in LSP
+          }
+          return diag;
+        });
+        next(uri, modifiedDiagnostics);
+      },
+    },
+  };
+
+  const client = new LanguageClient('ruff', 'ruff native server', serverOptions, clientOptions);
+  return client;
+}
 
 export function createLanguageClient(command: string) {
   const settings = workspace.getConfiguration('ruff');
@@ -20,6 +58,18 @@ export function createLanguageClient(command: string) {
     documentSelector: ['python'],
     initializationOptions: getInitializationOptions(),
     disabledFeatures: getLanguageClientDisabledFeatures(),
+    middleware: {
+      handleDiagnostics: (uri, diagnostics, next) => {
+        // Override severity: change all warnings to errors
+        const modifiedDiagnostics = diagnostics.map(diag => {
+          if (diag.severity === 2) { // 2 = Warning in LSP
+            return { ...diag, severity: 1 }; // 1 = Error in LSP
+          }
+          return diag;
+        });
+        next(uri, modifiedDiagnostics);
+      },
+    },
   };
 
   const client = new LanguageClient('ruff', 'ruff-lsp', serverOptions, clientOptions);
@@ -29,6 +79,10 @@ export function createLanguageClient(command: string) {
 type ImportStrategy = 'fromEnvironment' | 'useBundled';
 
 type Run = 'onType' | 'onSave';
+
+type ConfigPreference = 'editorFirst' | 'filesystemFirst' | 'editorOnly';
+
+type LogLevel = 'error' | 'warn' | 'info' | 'debug' | 'trace';
 
 type CodeAction = {
   disableRuleComment?: {
@@ -43,10 +97,15 @@ type Lint = {
   enable?: boolean;
   args?: string[];
   run?: Run;
+  preview?: boolean;
+  select?: string[];
+  extendSelect?: string[];
+  ignore?: string[];
 };
 
 type Format = {
   args?: string[];
+  preview?: boolean;
 };
 
 type RuffLspInitializationOptions = {
@@ -64,6 +123,12 @@ type RuffLspInitializationOptions = {
     fixAll: boolean;
     lint: Lint;
     format: Format;
+    exclude?: string[];
+    lineLength?: number;
+    configurationPreference?: ConfigPreference;
+    showSyntaxErrors: boolean;
+    logLevel?: LogLevel;
+    logFile?: string;
   };
 };
 
@@ -92,13 +157,24 @@ function convertFromWorkspaceConfigToInitializationOptions() {
         enable: settings.get<boolean>('lint.enable') ?? true,
         run: getLintRunSetting(),
         args: getLintArgsSetting(),
+        preview: settings.get<boolean>('lint.preview'),
+        select: settings.get<string[]>('lint.select'),
+        extendSelect: settings.get<string[]>('lint.extendSelect'),
+        ignore: settings.get<string[]>('lint.ignore'),
       },
       format: {
         args: settings.get<string[]>('format.args'),
+        preview: settings.get<boolean>('format.preview'),
       },
       showNotifications: settings.get<string>('showNotifications') ?? 'off',
       // MEMO: Used in ruff-lsp v0.0.41 and earlier. This item will be removed in the future
       enableExperimentalFormatter: settings.get<boolean>('enableExperimentalFormatter') ?? false,
+      exclude: settings.get<string[]>('exclude'),
+      lineLength: settings.get<number>('lineLength'),
+      configurationPreference: settings.get<ConfigPreference>('configurationPreference') ?? 'editorFirst',
+      showSyntaxErrors: settings.get<boolean>('showSyntaxErrors') ?? true,
+      logLevel: settings.get<LogLevel>('logLevel'),
+      logFile: settings.get<string>('logFile'),
     },
   };
 

@@ -1,7 +1,7 @@
 {
   "name": "@yaegassy/coc-ruff",
-  "version": "0.6.3",
-  "description": "ruff-lsp extension for coc.nvim",
+  "version": "0.8.1",
+  "description": "ruff server extension for coc.nvim",
   "author": "yaegassy <yosstools@gmail.com>",
   "license": "MIT",
   "main": "lib/index.js",
@@ -40,6 +40,7 @@
   },
   "devDependencies": {
     "@types/node": "^20.11.17",
+    "@types/semver": "^7.5.8",
     "@types/which": "^2.0.1",
     "@typescript-eslint/eslint-plugin": "^6.21.0",
     "@typescript-eslint/parser": "^6.21.0",
@@ -106,6 +107,16 @@
           "default": false,
           "description": "Turns auto fix on save on or off."
         },
+        "ruff.nativeServer": {
+          "default": true,
+          "description": "Use the integrated Rust-based language server, available now in Beta.",
+          "type": "boolean"
+        },
+        "ruff.nativeBinaryPath": {
+          "type": "string",
+          "default": "",
+          "description": "Custom path for the `ruff` binary when using the native server. If no value is set, the `ruff` command will be detected from the runtime environment."
+        },
         "ruff.serverPath": {
           "type": "string",
           "default": "",
@@ -128,6 +139,39 @@
         "ruff.lint.args": {
           "default": [],
           "description": "Additional command-line arguments to pass to `ruff check`, e.g., `\"args\": [\"--config=/path/to/pyproject.toml\"]`. Supports a subset of Ruff's command-line arguments, ignoring those that are required to operate the LSP, like `--force-exclude` and `--verbose`.",
+          "items": {
+            "type": "string"
+          },
+          "scope": "resource",
+          "type": "array"
+        },
+        "ruff.lint.preview": {
+          "default": null,
+          "description": "Enable [preview mode](https://docs.astral.sh/ruff/settings/#lint_preview) for the linter; enables unstable rules and fixes. This setting is used only by the native server.",
+          "scope": "resource",
+          "type": "boolean"
+        },
+        "ruff.lint.select": {
+          "default": null,
+          "description": "Set rule codes to enable. Use `ALL` to enable all rules. See [the documentation](https://docs.astral.sh/ruff/settings/#lint_select) for more details. This setting is used only by the native server.",
+          "items": {
+            "type": "string"
+          },
+          "scope": "resource",
+          "type": "array"
+        },
+        "ruff.lint.extendSelect": {
+          "default": null,
+          "description": "Enable additional rule codes on top of existing configuration, instead of overriding it. Use `ALL` to enable all rules. This setting is used only by the native server.",
+          "items": {
+            "type": "string"
+          },
+          "scope": "resource",
+          "type": "array"
+        },
+        "ruff.lint.ignore": {
+          "default": null,
+          "description": "Set rule codes to disable. See [the documentation](https://docs.astral.sh/ruff/settings/#lint_ignore) for more details. This setting is used only by the native server.",
           "items": {
             "type": "string"
           },
@@ -179,6 +223,12 @@
           },
           "scope": "resource",
           "type": "array"
+        },
+        "ruff.format.preview": {
+          "default": null,
+          "description": "Enable [preview mode](https://docs.astral.sh/ruff/settings/#format_preview) for the formatter; enables unstable formatting. This setting is used only by the native server.",
+          "scope": "resource",
+          "type": "boolean"
         },
         "ruff.path": {
           "default": [],
@@ -236,6 +286,12 @@
           "scope": "window",
           "type": "boolean"
         },
+        "ruff.showSyntaxErrors": {
+          "default": true,
+          "description": "Whether to show syntax error diagnostics.",
+          "scope": "window",
+          "type": "boolean"
+        },
         "ruff.ignoreStandardLibrary": {
           "default": true,
           "markdownDescription": "Whether to ignore files that are inferred to be part of the Python standard library.",
@@ -260,11 +316,64 @@
           "scope": "machine",
           "type": "string"
         },
+        "ruff.exclude": {
+          "default": null,
+          "items": {
+            "type": "string"
+          },
+          "description": "Set paths for the linter and formatter to ignore. See [the documentation](https://docs.astral.sh/ruff/settings/#lint_exclude) for more details. This setting is used only by the native server.",
+          "type": "array",
+          "scope": "resource"
+        },
+        "ruff.lineLength": {
+          "default": null,
+          "description": "Set the [line length](https://docs.astral.sh/ruff/settings/#line-length) used by the formatter and linter. Must be greater than 0 and less than or equal to 320. This setting is used only by the native server.",
+          "scope": "resource",
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "ruff.configurationPreference": {
+          "enum": [
+            "editorFirst",
+            "filesystemFirst",
+            "editorOnly"
+          ],
+          "enumDescriptions": [
+            "The default strategy - configuration set in the editor takes priority over configuration set in `.toml` files.",
+            "An alternative strategy - configuration set in `.toml` files takes priority over configuration set in the editor.",
+            "An alternative strategy - configuration set in `.toml` files is ignored entirely."
+          ],
+          "description": "The preferred method of resolving configuration in the editor with local configuration froml `.toml` files. This setting is used only by the native server.",
+          "scope": "resource",
+          "type": "string",
+          "default": "editorFirst"
+        },
         "ruff.enableExperimentalFormatter": {
           "default": false,
           "markdownDescription": "Controls whether Ruff registers as capable of code formatting. The Ruff formatter is in an alpha state during which formatting may change at any time.",
           "scope": "machine",
           "type": "boolean"
+        },
+        "ruff.logLevel": {
+          "default": null,
+          "markdownDescription": "Controls the log level of the language server.\n\n**This setting is used only by the native server.**",
+          "enum": [
+            "error",
+            "warning",
+            "info",
+            "debug",
+            "trace"
+          ],
+          "scope": "window",
+          "type": "string"
+        },
+        "ruff.logFile": {
+          "default": null,
+          "markdownDescription": "Path to the log file for the language server.\n\n**This setting is used only by the native server.**",
+          "scope": "window",
+          "type": "string"
         },
         "ruff.trace.server": {
           "type": "string",
@@ -292,8 +401,13 @@
         "title": "Format imports"
       },
       {
-        "command": "ruff.showOutput",
-        "title": "Show ruff output channel"
+        "title": "Print debug information (native server only)",
+        "category": "Ruff",
+        "command": "ruff.debugInformation"
+      },
+      {
+        "command": "ruff.showLogs",
+        "title": "Show logs"
       },
       {
         "command": "ruff.restart",
@@ -306,6 +420,8 @@
     ]
   },
   "dependencies": {
+    "semver": "^7.6.2",
     "toml": "^3.0.0"
-  }
+  },
+  "packageManager": "yarn@1.22.19+sha1.4ba7fc5c6e704fce2066ecbfb0b0d8976fe62447"
 }
