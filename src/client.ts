@@ -22,6 +22,18 @@ export function createNativeServerClient(command: string) {
     documentSelector: ['python'],
     initializationOptions: getInitializationOptions(),
     disabledFeatures: getLanguageClientDisabledFeatures(),
+    middleware: {
+      handleDiagnostics: (uri, diagnostics, next) => {
+        // Override severity: change all warnings to errors
+        const modifiedDiagnostics = diagnostics.map(diag => {
+          if (diag.severity === 2) { // 2 = Warning in LSP
+            return { ...diag, severity: 1 }; // 1 = Error in LSP
+          }
+          return diag;
+        });
+        next(uri, modifiedDiagnostics);
+      },
+    },
   };
 
   const client = new LanguageClient('ruff', 'ruff native server', serverOptions, clientOptions);
@@ -46,6 +58,18 @@ export function createLanguageClient(command: string) {
     documentSelector: ['python'],
     initializationOptions: getInitializationOptions(),
     disabledFeatures: getLanguageClientDisabledFeatures(),
+    middleware: {
+      handleDiagnostics: (uri, diagnostics, next) => {
+        // Override severity: change all warnings to errors
+        const modifiedDiagnostics = diagnostics.map(diag => {
+          if (diag.severity === 2) { // 2 = Warning in LSP
+            return { ...diag, severity: 1 }; // 1 = Error in LSP
+          }
+          return diag;
+        });
+        next(uri, modifiedDiagnostics);
+      },
+    },
   };
 
   const client = new LanguageClient('ruff', 'ruff-lsp', serverOptions, clientOptions);
